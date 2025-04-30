@@ -1,5 +1,5 @@
 <?php
-// Hostinger Database Configuration
+// Hostinger Cloud VPS Database Configuration
 
 // Function to log database connection status
 function logDbConnection($message) {
@@ -9,11 +9,11 @@ function logDbConnection($message) {
     file_put_contents($logFile, $logMessage, FILE_APPEND);
 }
 
-// Database credentials
-$db_host = 'localhost';
-$db_name = 'u343415529_itemtrack';
-$db_user = 'u343415529_itemtrack';
-$db_pass = 'YOUR_PASSWORD'; // Replace with your actual Hostinger password
+// Database credentials for gudang.nugijourney.com
+$db_host = 'localhost'; // Usually 'localhost' for Hostinger
+$db_name = 'itemtrack'; // Your database name from the Cloud Panel
+$db_user = 'itemtrack'; // Your database username from the Cloud Panel
+$db_pass = 'Reddevils94_'; // Your actual database password
 
 // Create connection
 try {
