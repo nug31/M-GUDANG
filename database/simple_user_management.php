@@ -1,16 +1,9 @@
 <?php
-// Enable CORS for development
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization");
-header("Content-Type: application/json");
+// Include CORS configuration
+require_once 'cors_config.php';
 
-// Handle preflight OPTIONS request
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    echo json_encode(['success' => true]);
-    exit();
-}
+// Set content type
+header("Content-Type: application/json");
 
 // Create a log file for debugging
 function logToFile($message) {
@@ -33,13 +26,13 @@ $db_pass = '';
 try {
     // Connect to the database
     $mysqli = new mysqli($db_host, $db_user, $db_pass, $db_name);
-    
+
     if ($mysqli->connect_error) {
         throw new Exception("Connection failed: " . $mysqli->connect_error);
     }
-    
+
     logToFile("Connected to database successfully");
-    
+
     // Handle different request methods
     switch ($_SERVER['REQUEST_METHOD']) {
         case 'GET':
@@ -62,12 +55,12 @@ try {
             ]);
             break;
     }
-    
+
     // Close the database connection
     $mysqli->close();
 } catch (Exception $e) {
     logToFile("Error: " . $e->getMessage());
-    
+
     http_response_code(500);
     echo json_encode([
         'success' => false,
@@ -78,27 +71,27 @@ try {
 // Handle GET request (fetch users)
 function handleGetRequest($mysqli) {
     logToFile("Handling GET request");
-    
+
     // Check if a specific user ID is requested
     if (isset($_GET['id'])) {
         $userId = $_GET['id'];
         logToFile("Fetching user with ID: " . $userId);
-        
+
         $stmt = $mysqli->prepare("SELECT id, name, email, role, department FROM users WHERE id = ?");
-        
+
         if (!$stmt) {
             throw new Exception("Prepare failed: " . $mysqli->error);
         }
-        
+
         $stmt->bind_param("s", $userId);
-        
+
         if (!$stmt->execute()) {
             throw new Exception("Execute failed: " . $stmt->error);
         }
-        
+
         $result = $stmt->get_result();
         $user = $result->fetch_assoc();
-        
+
         if (!$user) {
             http_response_code(404);
             echo json_encode([
@@ -107,7 +100,7 @@ function handleGetRequest($mysqli) {
             ]);
             return;
         }
-        
+
         echo json_encode([
             'success' => true,
             'data' => $user
@@ -115,19 +108,19 @@ function handleGetRequest($mysqli) {
     } else {
         // Fetch all users
         logToFile("Fetching all users");
-        
+
         $result = $mysqli->query("SELECT id, name, email, role, department FROM users");
-        
+
         if (!$result) {
             throw new Exception("Query failed: " . $mysqli->error);
         }
-        
+
         $users = [];
-        
+
         while ($row = $result->fetch_assoc()) {
             $users[] = $row;
         }
-        
+
         echo json_encode([
             'success' => true,
             'data' => $users
@@ -138,13 +131,13 @@ function handleGetRequest($mysqli) {
 // Handle POST request (create a new user)
 function handlePostRequest($mysqli) {
     logToFile("Handling POST request");
-    
+
     // Get the request data
     $rawData = file_get_contents('php://input');
     logToFile("Raw request data: " . $rawData);
-    
+
     $data = json_decode($rawData, true);
-    
+
     if (json_last_error() !== JSON_ERROR_NONE) {
         logToFile("JSON decode error: " . json_last_error_msg());
         http_response_code(400);
@@ -154,9 +147,9 @@ function handlePostRequest($mysqli) {
         ]);
         return;
     }
-    
+
     logToFile("Decoded request data: " . print_r($data, true));
-    
+
     // Validate the request data
     if (!isset($data['name']) || !isset($data['email']) || !isset($data['password'])) {
         logToFile("Missing required fields");
@@ -167,22 +160,22 @@ function handlePostRequest($mysqli) {
         ]);
         return;
     }
-    
+
     // Check if the email already exists
     $stmt = $mysqli->prepare("SELECT id FROM users WHERE email = ?");
-    
+
     if (!$stmt) {
         throw new Exception("Prepare failed: " . $mysqli->error);
     }
-    
+
     $stmt->bind_param("s", $data['email']);
-    
+
     if (!$stmt->execute()) {
         throw new Exception("Execute failed: " . $stmt->error);
     }
-    
+
     $result = $stmt->get_result();
-    
+
     if ($result->num_rows > 0) {
         logToFile("Email already exists: " . $data['email']);
         http_response_code(409);
@@ -192,33 +185,33 @@ function handlePostRequest($mysqli) {
         ]);
         return;
     }
-    
+
     // Generate a unique ID for the user
     $userId = uniqid();
     logToFile("Generated user ID: " . $userId);
-    
+
     // Hash the password
     $hashedPassword = password_hash($data['password'], PASSWORD_DEFAULT);
-    
+
     // Set default values for optional fields
     $role = isset($data['role']) ? $data['role'] : 'requester';
     $department = isset($data['department']) ? $data['department'] : null;
-    
+
     // Insert the user
     $stmt = $mysqli->prepare("INSERT INTO users (id, name, email, password, role, department) VALUES (?, ?, ?, ?, ?, ?)");
-    
+
     if (!$stmt) {
         throw new Exception("Prepare failed: " . $mysqli->error);
     }
-    
+
     $stmt->bind_param("ssssss", $userId, $data['name'], $data['email'], $hashedPassword, $role, $department);
-    
+
     if (!$stmt->execute()) {
         throw new Exception("Execute failed: " . $stmt->error);
     }
-    
+
     logToFile("User inserted successfully");
-    
+
     // Return the new user
     echo json_encode([
         'success' => true,
@@ -236,7 +229,7 @@ function handlePostRequest($mysqli) {
 // Handle PUT request (update a user)
 function handlePutRequest($mysqli) {
     logToFile("Handling PUT request");
-    
+
     // Check if a user ID is provided
     if (!isset($_GET['id'])) {
         logToFile("No user ID provided");
@@ -247,16 +240,16 @@ function handlePutRequest($mysqli) {
         ]);
         return;
     }
-    
+
     $userId = $_GET['id'];
     logToFile("Updating user with ID: " . $userId);
-    
+
     // Get the request data
     $rawData = file_get_contents('php://input');
     logToFile("Raw request data: " . $rawData);
-    
+
     $data = json_decode($rawData, true);
-    
+
     if (json_last_error() !== JSON_ERROR_NONE) {
         logToFile("JSON decode error: " . json_last_error_msg());
         http_response_code(400);
@@ -266,25 +259,25 @@ function handlePutRequest($mysqli) {
         ]);
         return;
     }
-    
+
     logToFile("Decoded request data: " . print_r($data, true));
-    
+
     // Check if the user exists
     $stmt = $mysqli->prepare("SELECT id, name, email, role, department FROM users WHERE id = ?");
-    
+
     if (!$stmt) {
         throw new Exception("Prepare failed: " . $mysqli->error);
     }
-    
+
     $stmt->bind_param("s", $userId);
-    
+
     if (!$stmt->execute()) {
         throw new Exception("Execute failed: " . $stmt->error);
     }
-    
+
     $result = $stmt->get_result();
     $user = $result->fetch_assoc();
-    
+
     if (!$user) {
         logToFile("User not found: " . $userId);
         http_response_code(404);
@@ -294,34 +287,34 @@ function handlePutRequest($mysqli) {
         ]);
         return;
     }
-    
+
     // Build the update query
     $updateFields = [];
     $updateValues = [];
     $updateTypes = "";
-    
+
     if (isset($data['name'])) {
         $updateFields[] = "name = ?";
         $updateValues[] = $data['name'];
         $updateTypes .= "s";
     }
-    
+
     if (isset($data['email'])) {
         // Check if the email already exists for another user
         $stmt = $mysqli->prepare("SELECT id FROM users WHERE email = ? AND id != ?");
-        
+
         if (!$stmt) {
             throw new Exception("Prepare failed: " . $mysqli->error);
         }
-        
+
         $stmt->bind_param("ss", $data['email'], $userId);
-        
+
         if (!$stmt->execute()) {
             throw new Exception("Execute failed: " . $stmt->error);
         }
-        
+
         $result = $stmt->get_result();
-        
+
         if ($result->num_rows > 0) {
             logToFile("Email already exists: " . $data['email']);
             http_response_code(409);
@@ -331,31 +324,31 @@ function handlePutRequest($mysqli) {
             ]);
             return;
         }
-        
+
         $updateFields[] = "email = ?";
         $updateValues[] = $data['email'];
         $updateTypes .= "s";
     }
-    
+
     if (isset($data['password']) && !empty($data['password'])) {
         $hashedPassword = password_hash($data['password'], PASSWORD_DEFAULT);
         $updateFields[] = "password = ?";
         $updateValues[] = $hashedPassword;
         $updateTypes .= "s";
     }
-    
+
     if (isset($data['role'])) {
         $updateFields[] = "role = ?";
         $updateValues[] = $data['role'];
         $updateTypes .= "s";
     }
-    
+
     if (isset($data['department'])) {
         $updateFields[] = "department = ?";
         $updateValues[] = $data['department'];
         $updateTypes .= "s";
     }
-    
+
     if (empty($updateFields)) {
         logToFile("No fields to update");
         http_response_code(400);
@@ -365,42 +358,42 @@ function handlePutRequest($mysqli) {
         ]);
         return;
     }
-    
+
     // Update the user
     $query = "UPDATE users SET " . implode(", ", $updateFields) . " WHERE id = ?";
     $stmt = $mysqli->prepare($query);
-    
+
     if (!$stmt) {
         throw new Exception("Prepare failed: " . $mysqli->error);
     }
-    
+
     $updateValues[] = $userId;
     $updateTypes .= "s";
-    
+
     $stmt->bind_param($updateTypes, ...$updateValues);
-    
+
     if (!$stmt->execute()) {
         throw new Exception("Execute failed: " . $stmt->error);
     }
-    
+
     logToFile("User updated successfully");
-    
+
     // Fetch the updated user
     $stmt = $mysqli->prepare("SELECT id, name, email, role, department FROM users WHERE id = ?");
-    
+
     if (!$stmt) {
         throw new Exception("Prepare failed: " . $mysqli->error);
     }
-    
+
     $stmt->bind_param("s", $userId);
-    
+
     if (!$stmt->execute()) {
         throw new Exception("Execute failed: " . $stmt->error);
     }
-    
+
     $result = $stmt->get_result();
     $updatedUser = $result->fetch_assoc();
-    
+
     // Return the updated user
     echo json_encode([
         'success' => true,
@@ -412,7 +405,7 @@ function handlePutRequest($mysqli) {
 // Handle DELETE request (delete a user)
 function handleDeleteRequest($mysqli) {
     logToFile("Handling DELETE request");
-    
+
     // Check if a user ID is provided
     if (!isset($_GET['id'])) {
         logToFile("No user ID provided");
@@ -423,25 +416,25 @@ function handleDeleteRequest($mysqli) {
         ]);
         return;
     }
-    
+
     $userId = $_GET['id'];
     logToFile("Deleting user with ID: " . $userId);
-    
+
     // Check if the user exists
     $stmt = $mysqli->prepare("SELECT id FROM users WHERE id = ?");
-    
+
     if (!$stmt) {
         throw new Exception("Prepare failed: " . $mysqli->error);
     }
-    
+
     $stmt->bind_param("s", $userId);
-    
+
     if (!$stmt->execute()) {
         throw new Exception("Execute failed: " . $stmt->error);
     }
-    
+
     $result = $stmt->get_result();
-    
+
     if ($result->num_rows === 0) {
         logToFile("User not found: " . $userId);
         http_response_code(404);
@@ -451,22 +444,22 @@ function handleDeleteRequest($mysqli) {
         ]);
         return;
     }
-    
+
     // Delete the user
     $stmt = $mysqli->prepare("DELETE FROM users WHERE id = ?");
-    
+
     if (!$stmt) {
         throw new Exception("Prepare failed: " . $mysqli->error);
     }
-    
+
     $stmt->bind_param("s", $userId);
-    
+
     if (!$stmt->execute()) {
         throw new Exception("Execute failed: " . $stmt->error);
     }
-    
+
     logToFile("User deleted successfully");
-    
+
     // Return success
     echo json_encode([
         'success' => true,

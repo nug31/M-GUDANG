@@ -1,16 +1,9 @@
 <?php
-// Enable CORS for development
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization");
-header("Content-Type: application/json");
+// Include CORS configuration
+require_once 'cors_config.php';
 
-// Handle preflight OPTIONS request
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    echo json_encode(['success' => true]);
-    exit();
-}
+// Set content type
+header("Content-Type: application/json");
 
 // Create a log file for debugging
 function logToFile($message) {
@@ -33,27 +26,27 @@ $db_pass = '';
 // Handle GET request (fetch items)
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     logToFile("Handling GET request");
-    
+
     try {
         // Connect to the database
         $mysqli = new mysqli($db_host, $db_user, $db_pass, $db_name);
-        
+
         if ($mysqli->connect_error) {
             throw new Exception("Connection failed: " . $mysqli->connect_error);
         }
-        
+
         logToFile("Connected to database successfully");
-        
+
         // Get all items
         $sql = "SELECT * FROM items";
         $result = $mysqli->query($sql);
-        
+
         if (!$result) {
             throw new Exception("Query failed: " . $mysqli->error);
         }
-        
+
         $items = [];
-        
+
         while ($row = $result->fetch_assoc()) {
             $items[] = [
                 'id' => $row['id'],
@@ -67,10 +60,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 'location' => $row['location']
             ];
         }
-        
+
         // Close the database connection
         $mysqli->close();
-        
+
         // Return success response
         echo json_encode([
             'success' => true,
@@ -79,12 +72,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         ]);
     } catch (Exception $e) {
         logToFile("Error: " . $e->getMessage());
-        
+
         // Close the database connection if it exists
         if (isset($mysqli)) {
             $mysqli->close();
         }
-        
+
         // Return error response
         echo json_encode([
             'success' => false,
@@ -95,13 +88,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 // Handle POST request (add item)
 else if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     logToFile("Handling POST request");
-    
+
     // Get the request data
     $rawData = file_get_contents('php://input');
     logToFile("Raw request data: " . $rawData);
-    
+
     $data = json_decode($rawData, true);
-    
+
     if (json_last_error() !== JSON_ERROR_NONE) {
         logToFile("JSON decode error: " . json_last_error_msg());
         echo json_encode([
@@ -110,23 +103,23 @@ else if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
         exit();
     }
-    
+
     logToFile("Decoded request data: " . print_r($data, true));
-    
+
     try {
         // Connect to the database
         $mysqli = new mysqli($db_host, $db_user, $db_pass, $db_name);
-        
+
         if ($mysqli->connect_error) {
             throw new Exception("Connection failed: " . $mysqli->connect_error);
         }
-        
+
         logToFile("Connected to database successfully");
-        
+
         // Generate a unique ID for the item
         $itemId = uniqid();
         logToFile("Generated item ID: " . $itemId);
-        
+
         // Set default values for missing fields
         $name = isset($data['name']) ? $data['name'] : 'New Item';
         $category = isset($data['category']) ? $data['category'] : 'Other';
@@ -135,23 +128,23 @@ else if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $totalStock = isset($data['totalStock']) ? (int)$data['totalStock'] : 0;
         $minQuantity = isset($data['lowStockThreshold']) ? (int)$data['lowStockThreshold'] : 0;
         $maxQuantity = isset($data['maxQuantity']) ? (int)$data['maxQuantity'] : 0;
-        
+
         // Insert the item
         $sql = "INSERT INTO items (id, name, category, quantity, description, location, min_quantity, max_quantity) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         $stmt = $mysqli->prepare($sql);
-        
+
         if (!$stmt) {
             throw new Exception("Prepare failed: " . $mysqli->error);
         }
-        
+
         $stmt->bind_param("sssisiii", $itemId, $name, $category, $totalStock, $description, $location, $minQuantity, $maxQuantity);
-        
+
         if (!$stmt->execute()) {
             throw new Exception("Execute failed: " . $stmt->error);
         }
-        
+
         logToFile("Item inserted successfully");
-        
+
         // Format the response data
         $responseData = [
             'id' => $itemId,
@@ -164,12 +157,12 @@ else if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'description' => $description,
             'location' => $location
         ];
-        
+
         logToFile("Response data: " . print_r($responseData, true));
-        
+
         // Close the database connection
         $mysqli->close();
-        
+
         // Return success response
         echo json_encode([
             'success' => true,
@@ -178,12 +171,12 @@ else if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
     } catch (Exception $e) {
         logToFile("Error: " . $e->getMessage());
-        
+
         // Close the database connection if it exists
         if (isset($mysqli)) {
             $mysqli->close();
         }
-        
+
         // Return error response
         echo json_encode([
             'success' => false,
